@@ -7,6 +7,9 @@ if [ $# -ne 2 ]; then
   exit 1
 fi
 
+echo "Nombre del archivo de salida: $1"
+echo "Cantidad de clientes: $2"
+
 OUTPUT="$1"
 NUM_CLIENTS="$2"
 
