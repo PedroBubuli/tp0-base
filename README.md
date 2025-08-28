@@ -178,3 +178,55 @@ Se espera que se redacte una sección del README en donde se indique cómo ejecu
 Se proveen [pruebas automáticas](https://github.com/7574-sistemas-distribuidos/tp0-tests) de caja negra. Se exige que la resolución de los ejercicios pase tales pruebas, o en su defecto que las discrepancias sean justificadas y discutidas con los docentes antes del día de la entrega. El incumplimiento de las pruebas es condición de desaprobación, pero su cumplimiento no es suficiente para la aprobación. Respetar las entradas de log planteadas en los ejercicios, pues son las que se chequean en cada uno de los tests.
 
 La corrección personal tendrá en cuenta la calidad del código entregado y casos de error posibles, se manifiesten o no durante la ejecución del trabajo práctico. Se pide a los alumnos leer atentamente y **tener en cuenta** los criterios de corrección informados  [en el campus](https://campusgrado.fi.uba.ar/mod/page/view.php?id=73393).
+
+
+
+# DOCUMENTACION
+
+### Ejercicio N°1:
+
+El objetivo de este ejercicio es automatizar la creación de un archivo docker-compose.yaml con una cantidad configurable de clientes.
+
+
+- Se implementó un script de Bash llamado generar-compose.sh, ubicado en la raíz del proyecto.
+
+- El script recibe dos parámetros:
+
+    Nombre del archivo de salida (ejemplo: docker-compose-dev.yaml)
+
+    Número de clientes a generar (ejemplo: 5)
+
+- Se utilizó un bucle for en Bash para generar dinámicamente la sección de cada cliente en el yaml.
+
+- Se mantuvo la estructura de red y servidor que ya existía en el archivo docker-compose-dev.yaml del repositorio original.
+
+
+Ejemplo de ejecución:
+
+```bash
+./generar-compose.sh docker-compose-dev.yaml 5
+```
+Esto genera un archivo docker-compose-dev.yaml con 1 servidor y 5 clientes.
+
+Generación de clientes:
+
+```bash
+for i in $(seq 1 "$NUM_CLIENTS"); do
+cat >> "$OUTPUT" <<EOF
+
+  client$i:
+    container_name: client$i
+    image: client:latest
+    entrypoint: /client
+    environment:
+      - CLI_ID=$i
+      - CLI_LOG_LEVEL=DEBUG
+    networks:
+      - testing_net
+    depends_on:
+      - server
+EOF
+done
+```
+donde OUTPUT es el primer parámetro (nombre del archivo de salida) y NUM_CLIENTS el segundo parámetro (la cantidad de clientes a generar).
+
