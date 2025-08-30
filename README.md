@@ -230,3 +230,61 @@ done
 ```
 donde OUTPUT es el primer parámetro (nombre del archivo de salida) y NUM_CLIENTS el segundo parámetro (la cantidad de clientes a generar).
 
+### Ejercicio N°2:
+
+En este ejercicio se modificó la forma en que se inyectan los archivos de configuración de cliente y servidor.
+
+El objetivo es que los contenedores no requieran ser reconstruidos cuando se cambie la configuración.
+
+Cambios realizados
+
+#### Cliente:
+
+  - Se eliminó del Dockerfile la instrucción que copiaba config.yaml dentro de la imagen.
+
+  - Ahora el config.yaml se monta dinámicamente mediante un volume en docker-compose.
+
+
+  ```bash
+  for i in $(seq 1 "$NUM_CLIENTS"); do
+  cat >> "$OUTPUT" <<EOF
+
+    client$i:
+      container_name: client$i
+      image: client:latest
+      entrypoint: /client
+      environment:
+        - CLI_ID=$i
+      volumes:
+        - ./client/config.yaml:/config.yaml
+      networks:
+        - testing_net
+      depends_on:
+        - server
+  EOF
+  done
+  ```
+
+#### Servidor:
+
+  - No fue necesario modificar el codigo (main.py ya lee el config.ini directamente).
+
+  - Solo se agregó un volumen en el docker-compose para que el archivo se monte en el contenedor.
+
+
+  ```bash
+  cat > "$OUTPUT" <<EOF
+  name: tp0
+  services:
+    server:
+      container_name: server
+      image: server:latest
+      entrypoint: python3 /main.py
+      environment:
+        - PYTHONUNBUFFERED=1
+      volumes:
+        - ./server/config.ini:/config.ini
+      networks:
+        - testing_net
+  EOF
+  ```
