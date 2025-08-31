@@ -288,3 +288,39 @@ Cambios realizados
         - testing_net
   EOF
   ```
+
+### Ejercicio N°3:
+
+En este ejercicio se crea un validar-echo-server.sh con el fin de verificar el correcto funcionamiento del servidor mediante netcat. el test consiste en enviar un mensaje y verificar que se reciba exactamente el mismo mensaje de vuelta.
+
+el script hace lo siguiente: 
+
+```bash
+REPLY=$(docker run --rm --network tp0_testing_net alpine \
+    sh -c "echo $TEST_MSG | nc -w 2 server 12345")
+```
+ #### `1. docker run --rm --network tp0_testing_net alpine`
+  - crea un contenedor temporal a partir de la imagen alpine (la cual ya viene con netcat)
+  - --rm hace que el contenedor se elimine cuado termine
+  - --network tp0_testing_net conecta este contenedor a la red tp0_testing_net que es la misma que usan el server y los clientes.
+
+#### `2. sh -c "..."`
+ - ejecuta un comando de shell dentro del contenedor alpine.
+
+#### `3. echo $TEST_MSG | nc -w 2 server 12345`
+ - echo $TEST_MSG imprime el mensaje que queremos enviar
+ - | nc -w 2 server 12345 lo pasa a netcat que se conecta al host server en el puerto 12345
+  - -w 2 indica que netcat espera máximo 2 segundos por una respuesta
+
+#### `4. REPLY=$( ... )`
+ - Captura la salida de todo el comando y lo guarda en la variable REPLY
+
+### `5. Validacion`
+```bash
+if [ "$REPLY" = "$TEST_MSG" ]; then
+    echo "action: test_echo_server | result: success"
+else
+    echo "action: test_echo_server | result: fail"
+fi
+```
+ - Si reply es igual a test_msg, se imprime "success", en su defecto "fail"
