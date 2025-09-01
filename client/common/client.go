@@ -3,12 +3,12 @@ package common
 import (
 	"bufio"
 	"fmt"
+	"github.com/op/go-logging"
 	"net"
-	"time"
 	"os"
 	"os/signal"
 	"syscall"
-	"github.com/op/go-logging"
+	"time"
 )
 
 var log = logging.MustGetLogger("log")
@@ -31,7 +31,7 @@ type Client struct {
 // as a parameter
 func NewClient(config ClientConfig) *Client {
 	client := &Client{
-		config: config
+		config: config,
 	}
 	return client
 }
@@ -80,9 +80,10 @@ func (c *Client) StartClientLoop() {
 				c.config.ID,
 				msgID,
 			)
-			
+
 			// asi como esta, si el servidor no responde, el cliente se cuelga. pero por ahora voy a asumir que el servidor siempre responde
 			var msg string
+			var err error
 			for {
 				msg, err = reader.ReadString('\n')
 				if err != nil {
