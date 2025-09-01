@@ -25,7 +25,6 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
-	signalChannel chan os.Signal
 }
 
 // NewClient Initializes a new client receiving the configuration
