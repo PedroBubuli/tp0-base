@@ -183,7 +183,7 @@ La corrección personal tendrá en cuenta la calidad del código entregado y cas
 
 # DOCUMENTACION
 
-### Ejercicio N°1:
+## Ejercicio N°1:
 
 El objetivo de este ejercicio es automatizar la creación de un archivo docker-compose.yaml con una cantidad configurable de clientes.
 
@@ -230,7 +230,10 @@ done
 ```
 donde OUTPUT es el primer parámetro (nombre del archivo de salida) y NUM_CLIENTS el segundo parámetro (la cantidad de clientes a generar).
 
-### Ejercicio N°2:
+
+
+
+## Ejercicio N°2:
 
 En este ejercicio se modificó la forma en que se inyectan los archivos de configuración de cliente y servidor.
 
@@ -289,7 +292,10 @@ Cambios realizados
   EOF
   ```
 
-### Ejercicio N°3:
+
+
+
+## Ejercicio N°3:
 
 En este ejercicio se crea un validar-echo-server.sh con el fin de verificar el correcto funcionamiento del servidor mediante netcat. el test consiste en enviar un mensaje y verificar que se reciba exactamente el mismo mensaje de vuelta.
 
@@ -315,7 +321,7 @@ REPLY=$(docker run --rm --network tp0_testing_net alpine \
 #### `4. REPLY=$( ... )`
  - Captura la salida de todo el comando y lo guarda en la variable REPLY
 
-### `5. Validacion`
+#### `5. Validacion`
 ```bash
 if [ "$REPLY" = "$TEST_MSG" ]; then
     echo "action: test_echo_server | result: success"
@@ -324,3 +330,53 @@ else
 fi
 ```
  - Si reply es igual a test_msg, se imprime "success", en su defecto "fail"
+
+
+
+
+
+## Ejercicio N°4:
+
+Se modificó la implementación de client.go y server.py para que tanto el client como el server cierren de forma graceful al recibir la signal SIGTERM. 
+
+#### `En client.go :`
+  - dentro del metodo SartClientLoop se creo el siguiente channel:
+  ```go
+  signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+  ```
+  este signalChannel recibe de forma directa singlas de parte del sistema operativo. Después del envío de cada mensaje, se chequea si llegó alguna señal al channel de la siguiente forma:
+
+  ```go
+  select {
+		case <-signalChannel:
+			log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
+			c.conn.Close()
+			return
+		default:
+  ```
+  Donde en el default se ejecuta el envío del siguiente mensaje. También se editó la implementación del Client para que deje de crear una nueva conexión por cada mensaje que quiere enviar y cerrarla después de enviar un solo mensaje. En cambio, ahora crea una sola conexión para enviar todos los mensajes que desea.
+
+  A futuro se podria considerar el caso donde el cliente se queda bloqueado en el read y agregarle un timeout al read para que chequee el channel mientras espera respuesta del servidor.
+
+  #### `En server.py :`
+
+  Se modificó la implementación del servidor para que pueda cerrar de forma graceful al recibir señales del sistema operativo, como SIGTERM o SIGINT.
+
+  Se registra un signal handler para SIGINT y SIGTERM usando la librería signal:
+  ```python
+  signal.signal(signal.SIGINT, self._signal_handler)
+  signal.signal(signal.SIGTERM, self._signal_handler)
+  ```
+  Cuando el servidor recibe alguna de estas señales, se ejecuta el método _signal_handler:
+
+  ```python
+  def _signal_handler(self, sig, frame):
+    logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
+
+    self._running = False
+    self._server_socket.shutdown(socket.SHUT_RDWR)
+    self._server_socket.close()
+  ```
+
+  La implementación del server se cambió para recibir mensajes del client hasta que el client cierre la conexion con el server.
