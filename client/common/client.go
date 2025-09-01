@@ -57,11 +57,14 @@ func (c *Client) StartClientLoop() {
 	// Messages if the message amount threshold has not been surpassed
 
 	c.createClientSocket()
+	defer c.conn.Close()
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+	reader := bufio.NewReader(c.conn)
 
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
+		c.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 		select {
 		case <-signalChannel:
@@ -77,16 +80,31 @@ func (c *Client) StartClientLoop() {
 				c.config.ID,
 				msgID,
 			)
-			msg, err := bufio.NewReader(c.conn).ReadString('\n')
-
-			if err != nil {
-				log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-					c.config.ID,
-					err,
-				)
-				return
+			
+			// asi como esta, si el servidor no responde, el cliente se cuelga. pero por ahora voy a asumir que el servidor siempre responde
+			var msg string
+			for {
+				msg, err = reader.ReadString('\n')
+				if err != nil {
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						select {
+						case <-signalChannel:
+							log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
+							return
+						default:
+							//reintento, sigue esperando
+							continue
+						}
+					}
+					log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+						c.config.ID,
+						err,
+					)
+					return
+				}
+				//mensaje recibido correctamente
+				break
 			}
-
 			log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
 				c.config.ID,
 				msg,
