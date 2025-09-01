@@ -3,12 +3,13 @@ package common
 import (
 	"bufio"
 	"fmt"
-	"github.com/op/go-logging"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/op/go-logging"
 )
 
 var log = logging.MustGetLogger("log")
@@ -62,14 +63,13 @@ func (c *Client) StartClientLoop() {
 
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
-	reader := bufio.NewReader(c.conn)
 
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		c.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 		select {
 		case <-signalChannel:
 			log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
+			c.conn.Close()
 			return
 		default:
 
@@ -80,32 +80,16 @@ func (c *Client) StartClientLoop() {
 				c.config.ID,
 				msgID,
 			)
+			msg, err := bufio.NewReader(c.conn).ReadString('\n')
 
-			// asi como esta, si el servidor no responde, el cliente se cuelga. pero por ahora voy a asumir que el servidor siempre responde
-			var msg string
-			var err error
-			for {
-				msg, err = reader.ReadString('\n')
-				if err != nil {
-					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-						select {
-						case <-signalChannel:
-							log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
-							return
-						default:
-							//reintento, sigue esperando
-							continue
-						}
-					}
-					log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-						c.config.ID,
-						err,
-					)
-					return
-				}
-				//mensaje recibido correctamente
-				break
+			if err != nil {
+				log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+					c.config.ID,
+					err,
+				)
+				return
 			}
+
 			log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
 				c.config.ID,
 				msg,
@@ -116,4 +100,5 @@ func (c *Client) StartClientLoop() {
 		}
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	c.conn.Close()
 }
