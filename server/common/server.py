@@ -16,9 +16,10 @@ class Server:
         signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _signal_handler(self, sig, frame):
-        logging.info(f"action: signal_received | signal: {sig}")
-        logging.info("Server shutting down gracefully")
+        logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
+
         self._running = False
+        self._server_socket.shutdown(socket.SHUT_RDWR)
         self._server_socket.close()
 
     def run(self):
