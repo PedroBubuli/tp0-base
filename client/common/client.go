@@ -69,9 +69,11 @@ func (c *Client) StartClientLoop() {
 		c.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 		select {
-		case <-signalChannel:
+		case signalReceived := <-signalChannel:
+			if signalReceived == syscall.SIGTERM{
 			log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
 			return
+			}
 		default:
 
 			// TODO: Modify the send to avoid short-write
@@ -89,9 +91,11 @@ func (c *Client) StartClientLoop() {
 				if err != nil {
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						select {
-						case <-signalChannel:
+						case signalReceived := <-signalChannel:
+							if signalReceived == syscall.SIGTERM{
 							log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
 							return
+							}
 						default:
 							//reintento, sigue esperando
 							continue
