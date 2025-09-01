@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net"
 	"time"
-
+	"os"
+	"os/signal"
+	"syscall"
 	"github.com/op/go-logging"
 )
 
@@ -69,7 +71,6 @@ func (c *Client) StartClientLoop() {
 		select {
 		case <-signalChannel:
 			log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
-			c.conn.Close()
 			return
 		default:
 
@@ -115,5 +116,4 @@ func (c *Client) StartClientLoop() {
 		}
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
-	c.conn.Close()
 }
