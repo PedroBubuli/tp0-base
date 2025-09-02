@@ -380,3 +380,110 @@ Se modificó la implementación de client.go y server.py para que tanto el clien
   ```
 
   La implementación del server se cambió para recibir mensajes del client hasta que el client cierre la conexion con el server.
+
+
+  ## Ejercicio N°5:
+
+  Se modifica el Cliente y Servidor para que funcionen como apostador y agencia de quinela respectivamente. 
+
+  #### `cambios en el server:`
+
+  A la clase Server se le agregan dos atributos nuevos:
+
+  ```python
+  self.client_id = 0
+  self.clients_dictionary = {}
+  ```
+  luego en run se hace:
+  ```python
+  client_connection = self.__accept_new_connection()
+  if client_connection:
+    self.clients_dictionary[self.client_id] = client_connection
+    self.__handle_client_connection(self.client_id)
+    self.client_id += 1
+  ```
+  Esto se incluyo para dejar lugar a que el Server pueda atender a mas de un cliente a la vez y organizar todos los sockets de sus clientes en el diccionario para poder despues liberarlos comodamente cuando haga falta.
+
+  client_connection en este caso es un objeto de la clase ServerProtocol el cual posee el socket de la conexion con un cliente especifico y se encarga de la comunicación con el mismo.
+
+  - recv_bet_info() -> metodo del protocolo que se encarga de recibir toda la informacion de una apuesta. Hace uso de los siguinetes metodos:
+  recv_string() y recv_bytes().
+  ```python
+  def recv_bytes(self, bytes_to_recv):
+    buffer = self.recv_all(bytes_to_recv)
+    if buffer is None:
+        return None
+    return int.from_bytes(buffer, byteorder='big')
+  ```
+  int.from_bytes(buffer, byteorder='big') se interpretan los bytes de buffer como un numero entero con los bytes ordenados por bigendian (que es como los envia el cliente).
+
+  ```python
+  def recv_string(self):
+    string_size = self.recv_bytes(1)
+    if string_size is None:
+        return None
+
+    string = self.recv_all(string_size)
+    if string is None:
+        return None
+    return string.decode('utf-8')
+  ```
+  string.decode('utf-8') se interpretan los bytes de 'string' como texto en codificacion UTF-8 y los convierte a un string de python.
+
+  ```python
+  def recv_all(self, length):
+    data = b''
+    while len(data) < length:
+        more = self.socket.recv(length - len(data))
+        if not more:
+            return None
+        data += more
+    return data
+  ```
+con este metodo recv_all se evita un short read al estar pidiendo en bucle que la cantidad total recibida sea igual a lenght.
+
+
+ #### `cambios en el cliente:`
+
+ Para empezar, el main busca del archivo docker-compose la informacion sobre el cliente:
+```go
+name := v.GetString("nombre")
+surname := v.GetString("apellido")
+dni := uint32(v.GetInt("documento"))
+date_of_birth := v.GetString("nacimiento")
+number := uint32(v.GetInt("numero"))
+```
+en client.go se creo el metodo Bet() para el struct Client. Bet() se conecta al servidor con connectToServer() y de esta forma Client adquiere una instancia de ClientProtocol que contiene el socket con la conexion al servidor.
+
+```go
+type ClientProtocol struct {
+	skt net.Conn
+}
+```
+Desde Bet() se hace uso del ClientProtocol del Client y se llama al metodo sendBetInfo() de ClientProtocol, pasandole por parametro la info del cliente.
+```go
+func (cp *ClientProtocol) SendNumber(num uint32) error {
+	data := make([]byte, sizeofUint32)
+	binary.BigEndian.PutUint32(data, num)
+	err := cp.SendAll(data)
+	return err
+}
+```
+binary.BigEndian.PutUint32(data, num) esto hace que los bytes de 'num' se pasen a 'data' en orden Big Endian (como los espera el server).
+
+```go
+func (cp *ClientProtocol) SendAll(data []byte) error {
+	totalSent := 0
+	dataLen := len(data)
+
+	for totalSent < dataLen {
+		n, err := cp.skt.Write(data[totalSent:])
+		if err != nil {
+			return err
+		}
+		totalSent += n
+	}
+	return nil
+}
+```
+el contador totalSent de marca bytes ya se enviaron y gracias a eso se puede repetir el ciclo de envio hasta que totalSent == dataLen enviando en cada write la porcion restante de data.
