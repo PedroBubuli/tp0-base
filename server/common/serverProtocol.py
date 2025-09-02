@@ -30,6 +30,15 @@ class ServerProtocol:
             return None
         return string.decode('utf-8')
 
+    def recv_agency_id(self):
+        return self.recv_bytes(1)
+    
+    def recv_number_of_bets(self):
+        return self.recv_bytes(1)
+
+    def send_success_message(self):
+        self.socket.sendall(b'\x01')
+
     def recv_bet_info(self):
 
         name = self.recv_string()

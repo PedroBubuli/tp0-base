@@ -45,6 +45,7 @@ cat >> "$OUTPUT" <<EOF
       - CLI_NUMERO=$((7110 + i))
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-$i.csv:/agency.csv
     networks:
       - testing_net
     depends_on:

@@ -30,14 +30,6 @@ class Server:
         self._server_socket.close()
 
     def run(self):
-        """
-        Dummy Server loop
-
-        Server that accept a new connections and establishes a
-        communication with a client. After client with communucation
-        finishes, servers starts to accept new connections again
-        """
-
         while self._running:
             try:
                 client_connection = self.__accept_new_connection()
@@ -50,25 +42,38 @@ class Server:
 
 
     def __handle_client_connection(self, client_id):
-        """
-        Read message from a specific client socket and closes the socket
 
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
-        """
         client_connection = self.clients_dictionary[client_id]
-        try:
 
-            name, surname, DNI, date_of_birth, num = client_connection.recv_bet_info()
-            
-            bet = utils.Bet("1", name, surname, str(DNI), date_of_birth, str(num))
-            utils.store_bets([bet])
-            logging.info(f'action: apuesta_almacenada | result: success | dni: {DNI} | numero:{num}')
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
+        agency_id = client_connection.recv_agency_id()
+        if agency_id is None:
+            logging.error("action: receive_agency_id | result: fail | error: agency_id_not_received")
             client_connection.close()
             del self.clients_dictionary[client_id]
+            return
+        
+        number_of_bets = client_connection.recv_number_of_bets()
+        if number_of_bets is None:
+            logging.error("action: receive_number_of_bets | result: fail | error: number_of_bets_not_received")
+            client_connection.close()
+            del self.clients_dictionary[client_id]
+            return
+        bets_received = 0
+        try:
+            for i in range(number_of_bets):
+                name, surname, DNI, date_of_birth, num = client_connection.recv_bet_info()
+                
+                bet = utils.Bet(str(agency_id), name, surname, str(DNI), date_of_birth, str(num))
+                utils.store_bets([bet])
+                bets_received += 1
+        except OSError as e:
+            logging.info(f'action: apuesta_recibida | result: fail | cantidad: {number_of_bets}')
+        finally:
+            logging.info(f'action: apuesta_recibida | result: success | cantidad: {bets_received}')
+            client_connection.send_success_message()
+            client_connection.close()
+            del self.clients_dictionary[client_id]
+
 
     def __accept_new_connection(self):
         """
