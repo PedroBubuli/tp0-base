@@ -112,11 +112,8 @@ func main() {
 
 	client := common.NewClient(clientConfig)
 
-	name := v.GetString("nombre")
-	surname := v.GetString("apellido")
-	dni := uint32(v.GetInt("documento"))
-	date_of_birth := v.GetString("nacimiento")
-	number := uint32(v.GetInt("numero"))
+	agency_id := uint8(v.GetInt("id"))
+	maxAmount := uint8(v.GetInt("batch.maxAmount"))
 
-	client.Bet(name, surname, dni, date_of_birth, number)
+	client.Bet(agency_id, maxAmount)
 }
