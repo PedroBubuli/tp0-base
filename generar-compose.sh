@@ -38,6 +38,11 @@ cat >> "$OUTPUT" <<EOF
     entrypoint: /client
     environment:
       - CLI_ID=$i
+      - CLI_NOMBRE=nombre$i
+      - CLI_APELLIDO=apellido$i
+      - CLI_DOCUMENTO=$((1000 + i))
+      - CLI_NACIMIENTO=1999-03-0$i
+      - CLI_NUMERO=$((7110 + i))
     volumes:
       - ./client/config.yaml:/config.yaml
     networks:
