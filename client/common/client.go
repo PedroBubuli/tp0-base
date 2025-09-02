@@ -139,6 +139,7 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 				betsCount = 1
 			}
 		}
+
 		if betsCount > 0 {
 			err := c.protocol.sendAgencyID(id)
 			if err != nil {
@@ -158,6 +159,11 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 				return
 			}
 			log.Infof("action: send_bet_info| result: success | bets_sent: %v", betsCount)
+		}
+		err := c.protocol.SendDoneSignal()
+		if err != nil {
+			log.Errorf("action: send_done_signal | result: fail | error: %v", err)
+			return
 		}
 	}
 }

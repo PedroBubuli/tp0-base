@@ -104,6 +104,10 @@ func (cp *ClientProtocol) recvSuccessMessage() (bool, error) {
 	return false, err
 }
 
+func (cp *ClientProtocol) SendDoneSignal() error {
+	return cp.SendAll([]byte{0}) // un byte de ceros para que el server sepa que ya no hay mas apuestas
+}
+
 func (cp *ClientProtocol) Close() {
 	if cp.skt != nil {
 		cp.skt.Close()
