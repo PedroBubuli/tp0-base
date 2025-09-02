@@ -111,5 +111,12 @@ func main() {
 	}
 
 	client := common.NewClient(clientConfig)
-	client.StartClientLoop()
+
+	name := v.GetString("nombre")
+	surname := v.GetString("apellido")
+	dni := uint32(v.GetInt("documento"))
+	date_of_birth := v.GetString("nacimiento")
+	number := uint32(v.GetInt("numero"))
+
+	client.Bet(name, surname, dni, date_of_birth, number)
 }
