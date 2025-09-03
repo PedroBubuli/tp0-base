@@ -14,6 +14,7 @@ class Server:
         self._running = True
         self.client_id = 0
         self.clients_dictionary = {}
+        self.agencies_waiting = []
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -29,16 +30,39 @@ class Server:
         self._server_socket.shutdown(socket.SHUT_RDWR)
         self._server_socket.close()
 
-    def run(self):
+    def run(self, agencies_count):
         while self._running:
             try:
+                if self.client_id >= agencies_count:
+                    self.choose_winner(agencies_count)
+                    # liberar los sockets de las agencias que ya jugaron
+                    logging.info(f"action: sorteo | result: success")
                 client_connection = self.__accept_new_connection()
                 if client_connection:
                     self.clients_dictionary[self.client_id] = client_connection
-                    self.__handle_client_connection(self.client_id)
                     self.client_id += 1
+                    self.__handle_client_connection(self.client_id)
             except OSError as e:
                 pass
+
+    def choose_winner(self, agencies_count):
+        winners = {}
+        for i in range(agencies_count):
+            winners[i+1] = []
+        for bet in utils.load_bets():
+            if utils.has_won(bet):
+                winners[bet.agency].append(bet.document)
+        for agency_id in self.agencies_waiting:
+            try:
+                client_connection = self.clients_dictionary[agency_id]
+                client_connection.send_winners(winners[agency_id])
+            except (socket.error, KeyError) as e:
+                logging.error(f"action: send_winners | result: fail | error: {e}")
+            logging.info(f"action: send_winners | result: success | agency_id: {agency_id}")
+            client_connection.close()
+            del self.clients_dictionary[agency_id]
+        self.agencies_waiting = []
+
 
 
     def __handle_client_connection(self, client_id):
@@ -53,9 +77,12 @@ class Server:
                 del self.clients_dictionary[client_id]
                 return
             
-            if agency_id < 1:
+            if agency_id == 0:
+                logging.info("action: agency_waiting__for_winners | result: success")
+                self.agencies_waiting.append(client_id)
                 break
-            
+
+
             number_of_bets = client_connection.recv_number_of_bets()
             if number_of_bets is None:
                 logging.error("action: receive_number_of_bets | result: fail | error: number_of_bets_not_received")
@@ -76,9 +103,6 @@ class Server:
             finally:
                 logging.info(f'action: apuesta_recibida | result: success | cantidad: {bets_received}')
                 client_connection.send_success_message()
-        
-        client_connection.close()
-        del self.clients_dictionary[client_id]
 
 
     def __accept_new_connection(self):

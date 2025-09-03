@@ -63,6 +63,16 @@ class ServerProtocol:
         
         return name, surname, DNI, date_of_birth, num
 
+    def send_winners(self, winners):
+        self.send_number(len(winners))
+        for document in winners:
+            self.send_number(int(document))
+        return
+
+    def send_number(self, number):
+        number_bytes = number.to_bytes(4, byteorder='big')
+        self.socket.sendall(number_bytes)
+        return
 
     def close (self):
         if self.socket is not None:
