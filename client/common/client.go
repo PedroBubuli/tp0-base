@@ -149,10 +149,17 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 			}
 			log.Infof("action: send_bet_info| result: success | bets_sent: %v", betsCount)
 		}
-		err := c.protocol.SendDoneSignal()
+		err := c.protocol.AskForWinners()
 		if err != nil {
-			log.Errorf("action: send_done_signal | result: fail | error: %v", err)
+			log.Errorf("action: ask_for_winners | result: fail | error: %v", err)
 			return
+		}
+		winners, err := c.protocol.ReceiveWinners()
+		if err != nil {
+			log.Errorf("action: receive_winners | result: fail | error: %v", err)
+			return
+		} else {
+			log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d", len(winners))
 		}
 	}
 }

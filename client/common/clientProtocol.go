@@ -104,10 +104,27 @@ func (cp *ClientProtocol) recvSuccessMessage() (bool, error) {
 	return false, err
 }
 
-func (cp *ClientProtocol) SendDoneSignal() error {
-	return cp.SendAll([]byte{0}) // un byte de ceros para que el server sepa que ya no hay mas apuestas
+func (cp *ClientProtocol) AskForWinners() error {
+	return cp.SendAll([]byte{0})
 }
 
+func (cp *ClientProtocol) ReceiveWinners() ([]int, error) {
+	sizeBuf, err := cp.ReadAll(4)
+	if err != nil {
+		return nil, err
+	}
+	size := binary.BigEndian.Uint32(sizeBuf)
+	winners := make([]int, size)
+	for i := uint32(0); i < size; i++ {
+		numBuf, err := cp.ReadAll(4)
+		if err != nil {
+			return nil, err
+		}
+		number := binary.BigEndian.Uint32(numBuf)
+		winners[i] = int(number)
+	}
+	return winners, nil
+}
 func (cp *ClientProtocol) Close() {
 	if cp.skt != nil {
 		cp.skt.Close()
