@@ -16,8 +16,6 @@ class Server:
         self._server_socket.listen(listen_backlog)
         self.client_id = 0
         self.clients_dictionary = {}
-        # self.agencies_waiting = []
-        # self.clients_agency_id = {} # ya no va a hacer falta creo
         self.barrier = None
         self.threads = []
 
@@ -33,7 +31,6 @@ class Server:
             
         self._server_socket.shutdown(socket.SHUT_RDWR)
         self._server_socket.close()
-        #joinear threads
         for thread in self.threads:
             thread.join()
 
@@ -41,10 +38,6 @@ class Server:
         self.barrier = threading.Barrier(agencies_count)
         while True:
             try:
-                # if self.client_id >= agencies_count:
-                
-                # self.choose_winner(agencies_count)
-                # logging.info(f"action: sorteo | result: success")
                 monitor = UtilsMonitor()
 
                 client_connection = self.__accept_new_connection()
@@ -57,31 +50,9 @@ class Server:
             except OSError as e:
                 pass
 
-    # def choose_winner(self, agencies_count):
-    #     winners = {}
-    #     for i in range(agencies_count):
-    #         winners[i+1] = []
-    #         logging.info(f"action: prepare_winners_list | result: success | agency_id: {i+1}")
-    #     for bet in utils.load_bets():
-    #         if utils.has_won(bet):
-    #             winners[bet.agency].append(bet.document)
-    #     for client_id in self.agencies_waiting:
-    #         agency_id = self.clients_agency_id[client_id]
-        #     try:
-        #         client_connection = self.clients_dictionary[client_id]
-        #         client_connection.send_winners(winners[agency_id])
-        #     except (socket.error, KeyError) as e:
-        #         logging.error(f"action: send_winners | result: fail | error: {e}")
-        #     logging.info(f"action: send_winners | result: success | agency_id: {agency_id}")
-        #     client_connection.close()
-        #     del self.clients_dictionary[client_id]
-        # self.agencies_waiting = []
-
-
 
     def __handle_client_connection(self, client_id, client_connection, monitor: UtilsMonitor):
 
-        # client_connection = self.clients_dictionary[client_id]
         agency = 0
 
         while True:  
@@ -94,16 +65,13 @@ class Server:
             
             if agency_id == 0:
                 logging.info("action: agency_waiting__for_winners | result: success")
-                # self.agencies_waiting.append(client_id) # esto no se si hace falta
                 
-                #aca pongo la barrier
                 self.barrier.wait()
                 # si ya estan todas las agencias esperando, sorteo
                 winners = monitor.load_winners(agency)
                 client_connection.send_winners(winners)
                 break
             
-            # self.clients_agency_id[client_id] = agency_id
             agency = agency_id
             
             number_of_bets = client_connection.recv_number_of_bets()
