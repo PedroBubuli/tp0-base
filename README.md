@@ -552,4 +552,49 @@ el contador totalSent de marca bytes ya se enviaron y gracias a eso se puede rep
     if agency_id < 1:
         break
   ```
-            
+
+  ## Ejercicio N°7:
+
+  El server espera a que todos los clientes le envien sus bets y le pidan sus ganadores. Una vez que el server recibe todas las peticiones, procede a designar ganadores con el nuevo metodo choose_winner() y dentro ese metodo hace uso del nuevo metodo del protocolo para enviar los ganadores.
+
+  ```python
+  client_connection.send_winners(winners[agency_id])
+  ```
+
+  ```python
+  def send_winners(self, winners):
+    self.send_number(len(winners))
+    for document in winners:
+        self.send_number(int(document))
+    return
+  ```
+
+  El server envia los ganadores al cliente con el siguiente formato:
+
+  |cantidad_de_ganadores(4bytes) | dni_ganador1(4bytes) | dni_ganador2(4bytes) | ... |dni_ganador_n(4bytes)|
+
+  En el cliente se agrega la peticion de los ganadores al server y se agrega al protocolo un metodo para recibir los mismos.
+  
+  ```go
+  func (cp *ClientProtocol) AskForWinners() error {
+	return cp.SendAll([]byte{0})
+}
+
+func (cp *ClientProtocol) ReceiveWinners() ([]int, error) {
+	sizeBuf, err := cp.ReadAll(4)
+	if err != nil {
+		return nil, err
+	}
+	size := binary.BigEndian.Uint32(sizeBuf)
+	winners := make([]int, size)
+	for i := uint32(0); i < size; i++ {
+		numBuf, err := cp.ReadAll(4)
+		if err != nil {
+			return nil, err
+		}
+		number := binary.BigEndian.Uint32(numBuf)
+		winners[i] = int(number)
+	}
+	return winners, nil
+}
+```

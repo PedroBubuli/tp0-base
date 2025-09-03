@@ -36,7 +36,6 @@ class Server:
             try:
                 if self.client_id >= agencies_count:
                     self.choose_winner(agencies_count)
-                    # liberar los sockets de las agencias que ya jugaron
                     logging.info(f"action: sorteo | result: success")
                 client_connection = self.__accept_new_connection()
                 if client_connection:
