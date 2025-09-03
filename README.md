@@ -487,3 +487,69 @@ func (cp *ClientProtocol) SendAll(data []byte) error {
 }
 ```
 el contador totalSent de marca bytes ya se enviaron y gracias a eso se puede repetir el ciclo de envio hasta que totalSent == dataLen enviando en cada write la porcion restante de data.
+
+
+  ## Ejercicio N°6:
+
+  Se modifica el cliente para que envie varias apuestas en un solo mensaje (sin excederse de 8kb de envio de informacion o de mas de 99 apuestas por mensaje).
+
+  #### `cambios en el cliente:`
+
+  El cliente ahora saca de su archivo agency.csv la informacion de las bets a enviar. Se lee el archivo una linea a la vez, serializandola con el protoclo para almacenarla en el chunk que se va a enviar al servidor.
+  
+  ```go
+  bytes := c.protocol.serializeBetInfo(parts[NAME_POS], parts[SURNAME_POS], uint32(dni), parts[DATE_OF_BIRTH_POS], uint32(num))
+
+  chunk = append(chunk, bytes...)
+  ```
+  El protocolo envia la informacion al server en este orden:
+ 
+  `AgencyID(1byte) | cantidadDeApuestas(1byte) | apuesta1 | apuesta2 | ...`
+  
+  las apuestas conservan el mismo formato de antes.
+
+  Se lee del archivo acumulando bets hasta que:
+  - la cantidad de apuestas sea mayor a 99
+  - la cantidad de bytes acumulados supere los 8kb
+  cuando una de esas dos cosas ocurre se envia lo que se tiene acumulado hasta el momento, pero no se le envia al server el codigo indicando que ya se enviaron todas las apuestas y recibe del server el mensaje de success al procesarse las apuestas enviadas.
+
+  De esta forma el server mantiene la conexion con el cliente porque sabe que todavia le quedan bets por enviar.
+
+  El cliente sigue acumulando bets hasta que se vuelva a cumplir una de las dos condiciones anteriores o hasta que llegue al fin del archivo.
+
+  si llega al fin del archivo sale del loop de lectura, y si todavia hay bets para enviar, se hace un ultimo envio. Finalmente se envia la SendDoneSignal() para indicarle al server que este cliente ya no enviara mas apuestas y que puede cerrar la conexion.
+
+  #### `cambios en el server:`
+
+  El server cambia el protocolo acorde a todo lo que va a enviar ahora el cliente. 
+
+  se crean estos metodos para el protocolo para adquirir la informacion nueva de parte del cliente:
+ ```python
+  def recv_agency_id(self):
+    return self.recv_bytes(1)
+
+  def recv_number_of_bets(self):
+      return self.recv_bytes(1)
+ ```
+  Se crea el metodo send_success_message para notificar al cliente que sus apuestas fueron procesadas correctamente:
+  ```python
+  def send_success_message(self):
+      self.socket.sendall(b'\x01')
+  ```
+
+  finalmente, en el loop de recvs que hace el server para salir de el mismo y terminar la conexion con el cliente, el cliente debe enviarle la SendDoneSignal() la cual ocupa 1byte al igual que la agency_id.
+
+  por ende cuando el server termina de procesar un chunk de apuestas y recibe que el agency_id es igual a cero (cero es la DoneSignal), sabe que el cliente no enviara mas apuestas y hace break del loop para poder terminar la conexion.
+  ```python
+  while True:  
+    agency_id = client_connection.recv_agency_id()
+    if agency_id is None:
+        logging.error("action: receive_agency_id | result: fail | error: agency_id_not_received")
+        client_connection.close()
+        del self.clients_dictionary[client_id]
+        return
+    
+    if agency_id < 1:
+        break
+  ```
+            

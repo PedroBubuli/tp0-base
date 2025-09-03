@@ -60,17 +60,6 @@ func (c *Client) connectToServer() error {
 	return nil
 }
 
-/*
-const (
-	NAME_POS      = 0
-	SURNAME_POS   = 1
-	DNI_POS  = 2
-	DATE_OF_BIRTH_POS = 3
-	NUMBER_POS    = 4
-	MAX_SIZE       = (8 * 1024) - 4
-)
-*/
-
 func (c *Client) Bet(id uint8, maxBets uint8) {
 
 	file, err := os.Open("agency.csv")
@@ -80,7 +69,7 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 			err,
 		)
 	}
-	defer file.Close() // ver de cerrarlo cuando termine d agarrar todo lo q quiero
+	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 	chunk := make([]byte, 0)
@@ -111,7 +100,7 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 			}
 			dni, _ := strconv.ParseUint(parts[DNI_POS], 10, 32)
 			num, _ := strconv.ParseUint(parts[NUMBER_POS], 10, 32)
-			bytes := c.protocol.serializeBetInfo(parts[NAME_POS], parts[SURNAME_POS], uint32(dni), parts[DATE_OF_BIRTH_POS], uint32(num)) //falta crear
+			bytes := c.protocol.serializeBetInfo(parts[NAME_POS], parts[SURNAME_POS], uint32(dni), parts[DATE_OF_BIRTH_POS], uint32(num))
 
 			chunk = append(chunk, bytes...)
 			betsCount++
@@ -130,7 +119,7 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 					log.Errorf("action: send_bet_info | result: fail | error: %v", err)
 					return
 				}
-				if b, e := c.protocol.recvSuccessMessage(); e != nil || !b { // falta crear
+				if b, e := c.protocol.recvSuccessMessage(); e != nil || !b {
 					log.Errorf("action: recv_success_message | result: fail | error: %v", e)
 					return
 				}
