@@ -39,8 +39,8 @@ class Server:
                     logging.info(f"action: sorteo | result: success")
                 client_connection = self.__accept_new_connection()
                 if client_connection:
-                    self.clients_dictionary[self.client_id] = client_connection
                     self.client_id += 1
+                    self.clients_dictionary[self.client_id] = client_connection
                     self.__handle_client_connection(self.client_id)
             except OSError as e:
                 pass
