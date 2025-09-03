@@ -15,6 +15,7 @@ class Server:
         self.client_id = 0
         self.clients_dictionary = {}
         self.agencies_waiting = []
+        self.clients_agency_id = {}
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -49,18 +50,20 @@ class Server:
         winners = {}
         for i in range(agencies_count):
             winners[i+1] = []
+            logging.info(f"action: prepare_winners_list | result: success | agency_id: {i+1}")
         for bet in utils.load_bets():
             if utils.has_won(bet):
                 winners[bet.agency].append(bet.document)
-        for agency_id in self.agencies_waiting:
+        for client_id in self.agencies_waiting:
+            agency_id = self.clients_agency_id[client_id]
             try:
-                client_connection = self.clients_dictionary[agency_id]
+                client_connection = self.clients_dictionary[client_id]
                 client_connection.send_winners(winners[agency_id])
             except (socket.error, KeyError) as e:
                 logging.error(f"action: send_winners | result: fail | error: {e}")
             logging.info(f"action: send_winners | result: success | agency_id: {agency_id}")
             client_connection.close()
-            del self.clients_dictionary[agency_id]
+            del self.clients_dictionary[client_id]
         self.agencies_waiting = []
 
 
@@ -81,8 +84,9 @@ class Server:
                 logging.info("action: agency_waiting__for_winners | result: success")
                 self.agencies_waiting.append(client_id)
                 break
-
-
+            
+            self.clients_agency_id[client_id] = agency_id
+            
             number_of_bets = client_connection.recv_number_of_bets()
             if number_of_bets is None:
                 logging.error("action: receive_number_of_bets | result: fail | error: number_of_bets_not_received")
