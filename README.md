@@ -598,3 +598,47 @@ func (cp *ClientProtocol) ReceiveWinners() ([]int, error) {
 	return winners, nil
 }
 ```
+
+ ## Ejercicio N°8:
+
+ Se modifica el archivo server.py para hacer que el servidor ahora atienda clinetes en paralelo haciendo uso de threads.
+
+ Se lanza un thread por cliente que se conecta y se guarda ese thread en una lista como atributo de la clase Server. Los threads son coordinados entre si con una Barrier para que ningun thread pueda enviar los ganadores del sorteo hasta que todos los threads de todos los clientes hayan enviado todas las apuestas:
+
+ logging.info("action: agency_waiting__for_winners | result: success")
+  ```python
+  self.barrier.wait()
+  # si ya estan todas las agencias esperando, sorteo
+  winners = monitor.load_winners(agency)
+  client_connection.send_winners(winners)
+  ```
+
+  Como se puede apreciar en el segmento de codigo anterior, ahora existe un monitor que se encarga de coordinar el acceso a Utils. Internamente UtilsMonitor usa un lock para que los archivos que abre Utils no sean abiertos por dos threads a la vez y asi evitar una race condition.
+
+  Para el cierre del server, cuando se recibe una signal SIGINT o SIGTERM se ejecuta el signal_handler que se encarga de cerrar los sockets y joinear los threads:
+
+
+  ```python
+  def _signal_handler(self, sig, frame):
+    logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
+
+    for client_id in list(self.clients_dictionary.keys()):
+        self.clients_dictionary[client_id].close()
+        del self.clients_dictionary[client_id]
+        
+    self._server_socket.shutdown(socket.SHUT_RDWR)
+    self._server_socket.close()
+    for thread in self.threads:
+        thread.join()
+  ```
+
+  Por mas que haya un socket conectado al cliente que este en la operacion bloqueante del recv(), al hacerle shutdown y close eso lo destraba para que pueda terminar la ejecucion y se pueda luego joinear el thread correctamente.
+
+  ### _"En caso de que el alumno implemente el servidor en Python utilizando multithreading, deberán tenerse en cuenta las limitaciones propias del lenguaje."_
+
+  python tiene un GIL (global interpreter lock) que es un mutex que previene a multiples threads de ejecutar bytecode de python en simultaneo.
+  Esto hace que aunque hayan nucleos libres en mi cpu, python haga solo uso de uno para ejecutar bytecode, limitando las capacidades de concurrencia del lenguaje.
+
+  Pero el GIL solo proteje la ejecucion del bytecode de python, no evita que se realicen operacion de lectura y escritura de archivos o de mensajeria a traves de sockets, y eso es mayoritariamente lo que sucede en este TP. El GIL reduce mucho el rendimiento en programas que son muy cpu intensive, que requieren de mucho procesamiento.
+
+  Como en este trabajo hay muchas operaciones de sockets y lectura de archivos, el GIL se libera frecuentemente lo que hace que no sea inconsecuente tener threads.
