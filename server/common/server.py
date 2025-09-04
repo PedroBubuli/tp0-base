@@ -101,7 +101,7 @@ class Server:
                 monitor.store_bet([bet])
                 bets_received += 1
 
-                logging.info(f'action: apuesta_recibida | result: success | cantidad: {bets_received}')
+            logging.info(f'action: apuesta_recibida | result: success | cantidad: {bets_received}')
             client_connection.send_success_message()
 
 
