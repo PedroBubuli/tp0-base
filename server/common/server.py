@@ -28,6 +28,10 @@ class Server:
         for client_id in list(self.clients_dictionary.keys()):
             self.clients_dictionary[client_id].close()
             del self.clients_dictionary[client_id]
+
+        #agrego esto para destrabar los threads que puedan estar en la barrier
+        if hasattr(self, 'barrier'):
+            self.barrier.abort()
             
         self._server_socket.shutdown(socket.SHUT_RDWR)
         self._server_socket.close()
@@ -42,7 +46,7 @@ class Server:
 
                 client_connection = self.__accept_new_connection()
                 if client_connection:
-                    self.client_id += 1 # envio batch  hilo bloqueado en barrier / flag para indicar el servidor se esta apgando y no se bloquee desp del handler.
+                    self.client_id += 1 # hilo bloqueado en barrier / flag para indicar el servidor se esta apgando y no se bloquee desp del handler.
                     self.clients_dictionary[self.client_id] = client_connection
                     thread = Thread(target=self.__handle_client_connection, args=(self.client_id, client_connection, monitor))
                     thread.start()
@@ -67,7 +71,12 @@ class Server:
             if agency_id == 0:
                 logging.info("action: agency_waiting__for_winners | result: success")
                 
-                self.barrier.wait()
+                #agrego este try catch por si el servidor se apaga mientras esta en la barrier alguno de los hilos
+                try:
+                    self.barrier.wait()
+                except threading.BrokenBarrierError:
+                    logging.info("action: barrier_broken | result: success")
+                    return
                 logging.info("action: all_agencies_ready | result: success")
                 # si ya estan todas las agencias esperando, sorteo
                 winners = monitor.load_winners(agency)
