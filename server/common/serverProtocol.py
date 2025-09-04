@@ -33,35 +33,37 @@ class ServerProtocol:
     def recv_agency_id(self):
         return self.recv_bytes(1)
     
-    def recv_number_of_bets(self):
-        return self.recv_bytes(1)
+    def recv_size_of_bets_batch(self):
+        return self.recv_bytes(4)
 
     def send_success_message(self):
         self.socket.sendall(b'\x01')
 
-    def recv_bet_info(self):
+    def parse_bet_info(self, buffer, offset):
+        
+        name_size = buffer[offset]
+        offset += 1
+        name = buffer[offset:offset+name_size].decode('utf-8')
+        offset += name_size
 
-        name = self.recv_string()
-        if name is None:
-            raise OSError("Error receiving name")
-        
-        surname = self.recv_string()
-        if surname is None:
-            raise OSError("Error receiving surname")
-        
-        DNI = self.recv_bytes(4)
-        if DNI is None:
-            raise OSError("Error receiving DNI")
-        
-        date_of_birth = self.recv_string()
-        if date_of_birth is None:
-            raise OSError("Error receiving date_of_birth")
-        
-        num = self.recv_bytes(4)
-        if num is None:
-            raise OSError("Error receiving num")
-        
-        return name, surname, DNI, date_of_birth, num
+        surname_size = buffer[offset]
+        offset += 1
+        surname = buffer[offset:offset+surname_size].decode('utf-8')
+        offset += surname_size
+
+        DNI = int.from_bytes(buffer[offset:offset+4], byteorder='big')
+        offset += 4
+
+        dob_size = buffer[offset]
+        offset += 1
+        date_of_birth = buffer[offset:offset+dob_size].decode('utf-8')
+        offset += dob_size
+
+        num = int.from_bytes(buffer[offset:offset+4], byteorder='big')
+        offset += 4
+
+        return (name, surname, DNI, date_of_birth, num), offset
+
 
     def send_winners(self, winners):
         self.send_number(len(winners))

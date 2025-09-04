@@ -42,12 +42,12 @@ class Server:
 
                 client_connection = self.__accept_new_connection()
                 if client_connection:
-                    self.client_id += 1
+                    self.client_id += 1 # envio batch  hilo bloqueado en barrier / flag para indicar el servidor se esta apgando y no se bloquee desp del handler.
                     self.clients_dictionary[self.client_id] = client_connection
                     thread = Thread(target=self.__handle_client_connection, args=(self.client_id, client_connection, monitor))
                     thread.start()
                     self.threads.append(thread)
-            except OSError as e:
+            except OSError as e: # especifcar q error es
                 pass
 
 
@@ -63,10 +63,12 @@ class Server:
                 del self.clients_dictionary[client_id]
                 return
             
+            # si es 0, la agencia esta lista y espera a las demas
             if agency_id == 0:
                 logging.info("action: agency_waiting__for_winners | result: success")
                 
                 self.barrier.wait()
+                logging.info("action: all_agencies_ready | result: success")
                 # si ya estan todas las agencias esperando, sorteo
                 winners = monitor.load_winners(agency)
                 client_connection.send_winners(winners)
@@ -74,26 +76,33 @@ class Server:
             
             agency = agency_id
             
-            number_of_bets = client_connection.recv_number_of_bets()
-            if number_of_bets is None:
-                logging.error("action: receive_number_of_bets | result: fail | error: number_of_bets_not_received")
+            size_of_batch = client_connection.recv_size_of_bets_batch()
+            if size_of_batch is None:
+                logging.error("action: receive_batch_size | result: fail | error: number_of_bets_not_received")
                 client_connection.close()
                 del self.clients_dictionary[client_id]
                 return
-                  
+            
+            batch_data = client_connection.recv_all(size_of_batch)
+            if batch_data is None:
+                logging.error("action: receive_bet_info | result: fail | error: bet_info_not_received")
+                client_connection.close()
+                del self.clients_dictionary[client_id]
+                return
+            
+            offset = 0
             bets_received = 0
-            try:
-                for i in range(number_of_bets):
-                    name, surname, DNI, date_of_birth, num = client_connection.recv_bet_info()
-                    
-                    bet = utils.Bet(str(agency_id), name, surname, str(DNI), date_of_birth, str(num))
-                    monitor.store_bet([bet])
-                    bets_received += 1
-            except OSError as e:
-                logging.info(f'action: apuesta_recibida | result: fail | cantidad: {number_of_bets}')
-            finally:
+            #loop para procesar el batch, teniendo en cuenta el offset del procesamiento anterior
+            while offset < len(batch_data):
+                bet_info, offset = client_connection.parse_bet_info(batch_data, offset)
+                name, surname, DNI, date_of_birth, num = bet_info
+
+                bet = utils.Bet(str(agency_id), name, surname, str(DNI), date_of_birth, str(num))
+                monitor.store_bet([bet])
+                bets_received += 1
+
                 logging.info(f'action: apuesta_recibida | result: success | cantidad: {bets_received}')
-                client_connection.send_success_message()
+            client_connection.send_success_message()
 
 
     def __accept_new_connection(self):

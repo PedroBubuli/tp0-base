@@ -114,7 +114,11 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 					)
 					return
 				}
-				err = c.protocol.sendBetInfo(chunk[:len(chunk)-len(bytes)], uint8(betsCount-1))
+				//corrijo y paso de enviar la cantidad de bets a enviar el tamaño en bytes del chunk como segundo parametro
+				err = c.protocol.sendBetInfo(
+					chunk[:len(chunk)-len(bytes)],
+					uint32(len(chunk)-len(bytes)),
+				)
 				if err != nil {
 					log.Errorf("action: send_bet_info | result: fail | error: %v", err)
 					return
@@ -138,7 +142,7 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 				)
 				return
 			}
-			err = c.protocol.sendBetInfo(chunk, uint8(betsCount))
+			err = c.protocol.sendBetInfo(chunk, uint32(len(chunk)))
 			if err != nil {
 				log.Errorf("action: send_bet_info | result: fail | error: %v", err)
 				return
@@ -149,14 +153,17 @@ func (c *Client) Bet(id uint8, maxBets uint8) {
 			}
 			log.Infof("action: send_bet_info| result: success | bets_sent: %v", betsCount)
 		}
+
 		err := c.protocol.AskForWinners()
 		if err != nil {
 			log.Errorf("action: ask_for_winners | result: fail | error: %v", err)
 			return
 		}
+
 		winners, err := c.protocol.ReceiveWinners()
+
 		if err != nil {
-			log.Errorf("action: receive_winners | result: fail | error: %v", err)
+			log.Infof("action: receive_winners | result: fail | error: %v", err)
 			return
 		} else {
 			log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d", len(winners))

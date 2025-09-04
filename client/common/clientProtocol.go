@@ -92,8 +92,12 @@ func (cp *ClientProtocol) sendAgencyID(id uint8) error {
 	return cp.SendAll([]byte{id})
 }
 
-func (cp *ClientProtocol) sendBetInfo(data []byte, size uint8) error {
-	return cp.SendAll(append([]byte{size}, data...))
+func (cp *ClientProtocol) sendBetInfo(data []byte, size uint32) error {
+
+	size_buffer := make([]byte, 4)
+	binary.BigEndian.PutUint32(size_buffer, size)
+
+	return cp.SendAll(append(size_buffer, data...))
 }
 
 func (cp *ClientProtocol) recvSuccessMessage() (bool, error) {
