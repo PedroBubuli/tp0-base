@@ -620,19 +620,25 @@ func (cp *ClientProtocol) ReceiveWinners() ([]int, error) {
 
   ```python
   def _signal_handler(self, sig, frame):
-    logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
+    #con este lock me aseguro que no se acepte ninguna conexion nueva/cree un thread mientras se esta cerrando el server
+    with self._accept_lock:
+        logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
+        self._shutting_down = True
+        for client_id in list(self.clients_dictionary.keys()):
+            self.clients_dictionary[client_id].close()
+            del self.clients_dictionary[client_id]
 
-    for client_id in list(self.clients_dictionary.keys()):
-        self.clients_dictionary[client_id].close()
-        del self.clients_dictionary[client_id]
-        
-    self._server_socket.shutdown(socket.SHUT_RDWR)
-    self._server_socket.close()
-    for thread in self.threads:
-        thread.join()
+        #agrego esto para destrabar los threads que puedan estar en la barrier
+        if hasattr(self, 'barrier'):
+            self.barrier.abort()
+            
+        self._server_socket.shutdown(socket.SHUT_RDWR)
+        self._server_socket.close()
+        for thread in self.threads:
+            thread.join()
   ```
 
-  Por mas que haya un socket conectado al cliente que este en la operacion bloqueante del recv(), al hacerle shutdown y close eso lo destraba para que pueda terminar la ejecucion y se pueda luego joinear el thread correctamente.
+  Por mas que haya un socket conectado al cliente que este en la operacion bloqueante del recv(), al hacerle shutdown y close eso lo destraba para que pueda terminar la ejecucion y se pueda luego joinear el thread correctamente, lo mismo con la barrier a la cual se le hace abort para destrabar cualquier hilo que haya podido estar bloqueado ahi. `self._accept_lock` es un lock que me asegura que mientras se esta ejecutando el handler para cerrar el server, no se estan creando en paralelo nuevas conexiones o nuevos threads que quedarian sin cerrar. Finalmente luego de que se ejecute el handler, el loop principal luego de agarrar el lock y antes de aceptar nuevas conexiones va a chequear el flag `_shutting_down` que es true y va a detener la ejecucion.
 
   ### _"En caso de que el alumno implemente el servidor en Python utilizando multithreading, deberán tenerse en cuenta las limitaciones propias del lenguaje."_
 
@@ -642,3 +648,103 @@ func (cp *ClientProtocol) ReceiveWinners() ([]int, error) {
   Pero el GIL solo proteje la ejecucion del bytecode de python, no evita que se realicen operacion de lectura y escritura de archivos o de mensajeria a traves de sockets, y eso es mayoritariamente lo que sucede en este TP. El GIL reduce mucho el rendimiento en programas que son muy cpu intensive, que requieren de mucho procesamiento.
 
   Como en este trabajo hay muchas operaciones de sockets y lectura de archivos, el GIL se libera frecuentemente lo que hace que no sea inconsecuente tener threads.
+
+ ## Cambios pedidos por el corrector:
+
+ Me asegure de hacer un commit por cada cambio agregado asi que tambien se puede ir a ver que agrega cada commit del dia 4/9/25 para ver que se cambio facilmente.
+
+se cambio el metodo sendBetInfo para que ahora envie el size del batch de bets que se esta por enviar y no la cantidad de bets como se enviaba anteriormente.
+
+```go
+func (cp *ClientProtocol) sendBetInfo(data []byte, size uint32) error {
+
+	size_buffer := make([]byte, 4)
+	binary.BigEndian.PutUint32(size_buffer, size)
+
+	return cp.SendAll(append(size_buffer, data...))
+}
+```
+
+se usan 4 bytes que se envian en bigEndian delante de las bets. Ahora el formato del paquete es el siguiente:
+
+
+| size de las bets(4bytes) | (bet.1,bet.2,...,bet.n) |
+
+dentro de cada bet:
+
+| name_size(1byte) | name | surname_size(1byte) | surname | DNI(4bytes) | date_of_birth_size(1byte) | date of birth | number (4bytes) |
+
+
+En el server ahora se hace un recv para recibir el size del batch en bytes y se hace un solo recv de ese size para recibir todo el batch de una vez:
+
+
+en `handle_client_connection()`:
+
+```python
+size_of_batch = client_connection.recv_size_of_bets_batch()
+
+batch_data = client_connection.recv_all(size_of_batch)
+```
+
+luego esa batch_data es enviada denuevo al protocolo para que la parsee y obtenga los datos necesarios de las bets.
+```python
+bet_info, offset = client_connection.parse_bet_info(batch_data, offset)
+```
+##
+
+Luego para solucionar el caso en el que un thread podia estar trabado en la barrier mientras se ejecutaba el signal_handler, se agrego al metodo `_signal_handler(self, sig, frame)` lo siguiente:
+
+```python
+   if hasattr(self, 'barrier'):
+    self.barrier.abort()
+```
+
+y en `handle_client_connection()` se agrego un catcheo de la excepcion producida por el abort:
+```python
+try:
+  self.barrier.wait()
+except threading.BrokenBarrierError:
+  logging.info("action: barrier_broken | result: success")
+  return
+```
+##
+Finalmente para evitar que durante la ejecucion del `_signal_handler()` se crearan nuevas conexiones y/o nuevos hilos, se agrego un atributo al server llamado `self._accept_lock` el se necesita para poder ejecutar el signal handler o para poder aceptar conexiones y crear threads, pero ninguna de las dos en simultaneo.
+
+
+```python
+def _signal_handler(self, sig, frame):
+
+        #con este lock me aseguro que no se acepte ninguna conexion nueva/cree un thread mientras se esta cerrando el server
+        with self._accept_lock:
+            logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
+            self._shutting_down = True
+            for client_id in list(self.clients_dictionary.keys()):
+                self.clients_dictionary[client_id].close()
+                del self.clients_dictionary[client_id]
+
+            #agrego esto para destrabar los threads que puedan estar en la barrier
+            if hasattr(self, 'barrier'):
+                self.barrier.abort()
+                
+            self._server_socket.shutdown(socket.SHUT_RDWR)
+            self._server_socket.close()
+            for thread in self.threads:
+                thread.join()
+```
+
+y dentro del run:
+
+```python
+while not self._shutting_down:
+  try:
+    with self._accept_lock:
+      if self._shutting_down:
+        break
+      client_connection = self.__accept_new_connection()
+      if client_connection:
+        self.client_id += 1
+        self.clients_dictionary[self.client_id] = client_connection
+        thread = Thread(target=self.__handle_client_connection, args=(self.client_id, client_connection, monitor))
+        thread.start()
+        self.threads.append(thread)
+```
