@@ -18,40 +18,50 @@ class Server:
         self.clients_dictionary = {}
         self.barrier = None
         self.threads = []
+        
+        #atributos nuevos para fix el shutdown con el signal handler
+        self._shutting_down = False
+        self._accept_lock = threading.Lock()
+        ######################################
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
+        
 
     def _signal_handler(self, sig, frame):
-        logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
 
-        for client_id in list(self.clients_dictionary.keys()):
-            self.clients_dictionary[client_id].close()
-            del self.clients_dictionary[client_id]
+        with self._accept_lock:
+            logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
+            self._shutting_down = True
+            for client_id in list(self.clients_dictionary.keys()):
+                self.clients_dictionary[client_id].close()
+                del self.clients_dictionary[client_id]
 
-        #agrego esto para destrabar los threads que puedan estar en la barrier
-        if hasattr(self, 'barrier'):
-            self.barrier.abort()
-            
-        self._server_socket.shutdown(socket.SHUT_RDWR)
-        self._server_socket.close()
-        for thread in self.threads:
-            thread.join()
+            #agrego esto para destrabar los threads que puedan estar en la barrier
+            if hasattr(self, 'barrier'):
+                self.barrier.abort()
+                
+            self._server_socket.shutdown(socket.SHUT_RDWR)
+            self._server_socket.close()
+            for thread in self.threads:
+                thread.join()
 
     def run(self, agencies_count):
         self.barrier = threading.Barrier(agencies_count)
-        while True:
+        monitor = UtilsMonitor()
+        while not self._shutting_down:
             try:
-                monitor = UtilsMonitor()
-
-                client_connection = self.__accept_new_connection()
-                if client_connection:
-                    self.client_id += 1 # hilo bloqueado en barrier / flag para indicar el servidor se esta apgando y no se bloquee desp del handler.
-                    self.clients_dictionary[self.client_id] = client_connection
-                    thread = Thread(target=self.__handle_client_connection, args=(self.client_id, client_connection, monitor))
-                    thread.start()
-                    self.threads.append(thread)
-            except OSError as e: # especifcar q error es
+                with self._accept_lock:
+                    if self._shutting_down:
+                        break
+                    client_connection = self.__accept_new_connection()
+                    if client_connection:
+                        self.client_id += 1
+                        self.clients_dictionary[self.client_id] = client_connection
+                        thread = Thread(target=self.__handle_client_connection, args=(self.client_id, client_connection, monitor))
+                        thread.start()
+                        self.threads.append(thread)
+            except OSError as e:
                 pass
 
 
