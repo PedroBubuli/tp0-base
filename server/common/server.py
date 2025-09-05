@@ -2,6 +2,7 @@ import socket
 import signal
 import sys
 import logging
+import errno
 import common.utils as utils
 from common.serverProtocol import ServerProtocol
 import threading
@@ -30,6 +31,7 @@ class Server:
 
     def _signal_handler(self, sig, frame):
 
+        #con este lock me aseguro que no se acepte ninguna conexion nueva/cree un thread mientras se esta cerrando el server
         with self._accept_lock:
             logging.Info("action: exit | result: success | reason: signal_received | signal: SIGTERM")
             self._shutting_down = True
@@ -62,7 +64,14 @@ class Server:
                         thread.start()
                         self.threads.append(thread)
             except OSError as e:
-                pass
+                if self._shutting_down:
+                    break
+                if e.errno in (errno.EINTR, errno.EAGAIN):
+                    continue
+                
+                #error critico, dejo de aceptar conexiones
+                logging.error(f"action: accept_connections | result: fail | error: {e}")
+                break
 
 
     def __handle_client_connection(self, client_id, client_connection, monitor: UtilsMonitor):
